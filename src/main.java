@@ -2,6 +2,9 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.geom.Path2D;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 public class main extends JComponent {
@@ -34,7 +37,7 @@ public class main extends JComponent {
         proj.m[2][3]=1.0f;
         proj.m[3][3] = 0.0f;
 
-     /*   // SOUTH
+        // SOUTH
         meshCube.tris.add(new triangle(new vector(0.0f,0.0f,0.0f),   new vector(0.0f,1.0f,0.0f),   new vector(1.0f,1.0f,0.0f)));
         meshCube.tris.add(new triangle(new vector(0.0f,0.0f,0.0f),   new vector(1.0f,1.0f,0.0f),   new vector(1.0f,0.0f,0.0f)));
 
@@ -57,13 +60,15 @@ public class main extends JComponent {
         // BOTTOM
         meshCube.tris.add(new triangle(new vector(1.0f,0.0f,1.0f),   new vector(0.0f,0.0f,1.0f),   new vector(0.0f,0.0f,0.0f)));
         meshCube.tris.add(new triangle(new vector(1.0f,0.0f,1.0f),   new vector(0.0f,0.0f,0.0f),   new vector(1.0f,0.0f,0.0f)));
-*/
-        meshCube.loadFromObjectFile("C:\\Users\\Ascor\\Documents\\baileybunbun.obj");
+
+        // meshCube.loadFromObjectFile("C:\\Users\\Ascor\\Documents\\baileybunbun.obj");
         JPanel renderPanel = new JPanel() {
             public void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g;
                 g2.setColor(Color.BLACK);
                 g2.fillRect(0, 0, getWidth(), getHeight());
+
+                List<triangle> trianglesToRaster = new ArrayList<>();
                 for (triangle t : meshCube.tris) {
 
                     triangle triRotatedZ = new triangle(t.p[0],t.p[1],t.p[2]);
@@ -138,11 +143,13 @@ public class main extends JComponent {
                         lightDirection.y /= lightLength;
                         lightDirection.z /= lightLength;
 
-                        float dp = normal.x*lightDirection.x + normal.y*lightDirection.y + normal.z*lightDirection.z;
+
 
                         //Projection
 
                         triangle triProjected = new triangle(triTranslated.p[0], triTranslated.p[1], triTranslated.p[2]);
+
+                        triProjected.dp = normal.x*lightDirection.x + normal.y*lightDirection.y + normal.z*lightDirection.z;
 
                         triProjected.p[0] = multiplyMatrixVector(triTranslated.p[0], proj);
                         triProjected.p[1] = multiplyMatrixVector(triTranslated.p[1], proj);
@@ -165,21 +172,33 @@ public class main extends JComponent {
                         triProjected.p[2].x *= 0.5f * 500.0f;
                         triProjected.p[2].y *= 0.5f * 500.0f;
 
-                        Path2D path = new Path2D.Double();
-                        path.moveTo(triProjected.p[0].x, triProjected.p[0].y);
-                        path.lineTo(triProjected.p[1].x, triProjected.p[1].y);
-                        path.lineTo(triProjected.p[2].x, triProjected.p[2].y);
+                        //rasterize triangles
+
+                        trianglesToRaster.add(triProjected);
+
+                        // draw triangles
+
+                    }
+                }
+                Collections.sort(trianglesToRaster, new sortByZ());
+                System.out.println("Sorted:");
+                for(triangle current : trianglesToRaster){
+                    current.printZAverage();
+                }
+                for(triangle current : trianglesToRaster){
+                    Path2D path = new Path2D.Double();
+                        path.moveTo(current.p[0].x, current.p[0].y);
+                        path.lineTo(current.p[1].x, current.p[1].y);
+                        path.lineTo(current.p[2].x, current.p[2].y);
                         path.closePath();
-                        dp *= 255.0f;
-                        System.out.println(dp);
-                        if(dp<0||dp>255) {
-                            dp = 255;
+                        current.dp *= 255.0f;
+                        if(current.dp<0||current.dp>255) {
+                            current.dp = 255;
                         }
-                        g.setColor(new Color((int)dp,(int)dp,(int)dp));
+                        g.setColor(new Color((int)current.dp,(int)current.dp,(int)current.dp));
                         g2.fill(path);
                     /*g2.setColor(Color.white);
                     g2.draw(path);*/
-                    }
                 }
 
             }
