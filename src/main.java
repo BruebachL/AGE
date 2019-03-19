@@ -1,5 +1,6 @@
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ActionEvent;
 import java.awt.geom.Path2D;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -11,51 +12,80 @@ public class main extends JComponent {
     static JFrame frame = new JFrame();
     static mesh meshCube;
     static float fTheta;
-    static float fNear = 0.1f;
-    static float fFar = 1000.0f;
-    static float fFov = 90.0f;
-    static float fAspectRatio = 1.0f;
-    static float fFovRad = 1.0f / (float)Math.tan(fFov * 0.5f/180.0f*3.14159f);
-    static mat4x4 proj = new mat4x4();
-    static vector camera = new vector(0,0,0);
+    static vector vCamera = new vector(0,0,0);
+    static JLabel listener = new JLabel();
+    static boolean rotateY = false;
+    static boolean rotateX = false;
+    static boolean rotateZ = false;
 
     public static void main(String[] args) throws InterruptedException, IOException {
+
+        //swing management and init
+        vector vCamera = new vector(0,0,0);
         long start = System.currentTimeMillis();
-        frame.setSize(500, 500);
-        //frame.setExtendedState(JFrame.MAXIMIZED_BOTH);
+        frame.setSize(1000, 1000);
         frame.getContentPane();
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setVisible(true);
         frame.setFocusable(true);
         frame.requestFocusInWindow();
-        meshCube = new mesh();
+        frame.add(listener);
+        listener.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("W"), "up");
+        listener.getActionMap().put("up", new moveUp());
+        listener.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("S"), "down");
+        listener.getActionMap().put("down", new moveDown());
+        listener.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("F"), "rotateX");
+        listener.getActionMap().put("rotateX", new toggleXRot());
+        listener.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("G"), "rotateY");
+        listener.getActionMap().put("rotateY", new toggleYRot());
+        listener.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("H"), "rotateZ");
+        listener.getActionMap().put("rotateZ", new toggleZRot());
 
-        meshCube.loadFromObjectFile("/home/ascor/Desktop/teapot.obj");
+
+        //load and create model
+
+        meshCube = new mesh();
+        meshCube.loadFromObjectFile("C:\\Users\\Ascor\\Documents\\teapot.obj");
+
         JPanel renderPanel = new JPanel() {
             public void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g;
                 g2.setColor(Color.BLACK);
                 g2.fillRect(0, 0, getWidth(), getHeight());
 
+                mat4x4 matProj = matrixMakeProjection(90,(float)(frame.getHeight()/frame.getWidth()),0.1f, 1000.0f,1.0f / (float)Math.tan(90.0f * 0.5f/180.0f*3.14159f));
+
+                mat4x4 matRotZ = matrixMakeRotationZ(fTheta);
+                mat4x4 matRotY = matrixMakeRotationY(fTheta);
+                mat4x4 matRotX = matrixMakeRotationX(fTheta);
+
+                mat4x4 matTrans = matrixMakeTranslation(0.0f,0.0f,5.0f);
+                mat4x4 matWorld = matrixMakeIdentity();
+                //matWorld = matrixMultiplyMatrix(matRotZ,matRotY);
+                if(rotateZ) {
+                    matWorld = matrixMultiplyMatrix(matWorld, matRotZ);
+                }
+                if(rotateY) {
+                    matWorld = matrixMultiplyMatrix(matWorld, matRotY);
+                }
+                    if(rotateX) {
+                        matWorld = matrixMultiplyMatrix(matWorld, matRotX);
+                    }
+                matWorld = matrixMultiplyMatrix(matWorld,matTrans);
+
+                vector lookDir = new vector(0,0,1);
+                vector vUp = new vector(0,1,0);
+                vector vTarget = vectorAdd(vCamera,lookDir);
+
+                mat4x4 matCamera = matrixPointAt(vCamera, vTarget, vUp);
+
+                //make view matrix from camera
+                mat4x4 matView =  matrixQuickInverse(matCamera);
+
                 List<triangle> trianglesToRaster = new ArrayList<>();
                 for (triangle t : meshCube.tris) {
 
                     triangle triTransformed = new triangle(t.p[0],t.p[1],t.p[2]);
-
-                    mat4x4 matProj = matrixMakeProjection(90,(float)(frame.getHeight()/frame.getWidth()),0.1f, 1000.0f,1.0f / (float)Math.tan(90.0f * 0.5f/180.0f*3.14159f));
-
-                    mat4x4 matRotZ = matrixMakeRotationZ(fTheta);
-                    mat4x4 matRotY = matrixMakeRotationY(fTheta);
-                    mat4x4 matRotX = matrixMakeRotationX(fTheta);
-
-                    mat4x4 matTrans = matrixMakeTranslation(0.0f,0.0f,16.0f);
-                    mat4x4 matWorld = matrixMakeIdentity();
-                    //matWorld = matrixMultiplyMatrix(matRotZ,matRotY);
-                    //matWorld = matrixMultiplyMatrix(matWorld, matRotZ);
-                    matWorld = matrixMultiplyMatrix(matWorld, matRotY);
-                    matWorld = matrixMultiplyMatrix(matWorld, matRotX);
-                    matWorld = matrixMultiplyMatrix(matWorld,matTrans);
-
 
                     //offset to fit viewport
 
@@ -63,16 +93,12 @@ public class main extends JComponent {
                     triTransformed.p[1] = matrixMultiplyVector(t.p[1],matWorld);
                     triTransformed.p[2] = matrixMultiplyVector(t.p[2],matWorld);
 
-                    triTransformed.p[0].z = triTransformed.p[0].z + 9.5f;
-                    triTransformed.p[1].z = triTransformed.p[1].z + 9.5f;
-                    triTransformed.p[2].z = triTransformed.p[2].z + 9.5f;
-
                     vector line1 = vectorSub(triTransformed.p[1],triTransformed.p[0]);
                     vector line2 = vectorSub(triTransformed.p[2],triTransformed.p[0]);
                     vector normal = vectorCrossproduct(line1,line2);
                     normal = vectorNormalize(normal);
 
-                    vector vCameraRay = vectorSub(triTransformed.p[0], camera);
+                    vector vCameraRay = vectorSub(triTransformed.p[0], vCamera);
 
                     if(vectorDot(normal,vCameraRay)<0.0f) {
 
@@ -81,17 +107,32 @@ public class main extends JComponent {
                         vector lightDirection = new vector(0,0,-1);
                         lightDirection = vectorNormalize(lightDirection);
 
+                        //Convert world space to view space
+
+                        triangle triViewed = new triangle(t.p[0], t.p[1],t.p[2]);
+                        triViewed.p[0] = matrixMultiplyVector(triTransformed.p[0], matView);
+                        triViewed.p[1] = matrixMultiplyVector(triTransformed.p[1], matView);
+                        triViewed.p[2] = matrixMultiplyVector(triTransformed.p[2], matView);
+
                         //Projection
 
-                        triangle triProjected = new triangle(triTransformed.p[0], triTransformed.p[1], triTransformed.p[2]);
+                        triangle triProjected = new triangle(triViewed.p[0], triViewed.p[1], triViewed.p[2]);
+
+                        //get similarity of lightvector and vertexnormal
 
                         triProjected.dp = Math.max(0.1f, vectorDot(lightDirection,normal));
 
-                        triProjected.p[0] = matrixMultiplyVector(triTransformed.p[0], matProj);
-                        triProjected.p[1] = matrixMultiplyVector(triTransformed.p[1], matProj);
-                        triProjected.p[2] = matrixMultiplyVector(triTransformed.p[2], matProj);
+                        //actually project
+
+                        triProjected.p[0] = matrixMultiplyVector(triViewed.p[0], matProj);
+                        triProjected.p[1] = matrixMultiplyVector(triViewed.p[1], matProj);
+                        triProjected.p[2] = matrixMultiplyVector(triViewed.p[2], matProj);
+
+                        //store depth for sorting
 
                         triProjected.setzDepth();
+
+                        //normalize the projection
 
                         triProjected.p[0] = vectorDiv(triProjected.p[0], triProjected.p[0].w);
                         triProjected.p[1] = vectorDiv(triProjected.p[1], triProjected.p[1].w);
@@ -103,27 +144,29 @@ public class main extends JComponent {
                         triProjected.p[0] = vectorAdd(triProjected.p[0],vOffsetView);
                         triProjected.p[1] = vectorAdd(triProjected.p[1],vOffsetView);
                         triProjected.p[2] = vectorAdd(triProjected.p[2],vOffsetView);
-                        triProjected.p[0].x *= 0.5f * (float)frame.getWidth();
-                        triProjected.p[0].y *= 0.5f * (float)frame.getHeight();
-                        triProjected.p[1].x *= 0.5f * (float)frame.getWidth();
-                        triProjected.p[1].y *= 0.5f * (float)frame.getHeight();
-                        triProjected.p[2].x *= 0.5f * (float)frame.getWidth();
-                        triProjected.p[2].y *= 0.5f * (float)frame.getHeight();
+                        float scale = 0.5f;
+                        triProjected.p[0].x *= scale * (float)frame.getWidth();
+                        triProjected.p[0].y *= scale * (float)frame.getHeight();
+                        triProjected.p[1].x *= scale * (float)frame.getWidth();
+                        triProjected.p[1].y *= scale * (float)frame.getHeight();
+                        triProjected.p[2].x *= scale * (float)frame.getWidth();
+                        triProjected.p[2].y *= scale * (float)frame.getHeight();
 
                         //rasterize triangles
 
                         trianglesToRaster.add(triProjected);
-
-                        // draw triangles
-
                     }
                 }
+
+                //sort so triangles closest to screen get drawn last
+
                 Collections.sort(trianglesToRaster, new sortByZ());
                 Collections.reverse(trianglesToRaster);
-                System.out.println("Sorted:");
+
+                //draw
 
                 for(triangle current : trianglesToRaster){
-                    Path2D path = new Path2D.Double();
+                        Path2D path = new Path2D.Double();
                         path.moveTo(current.p[0].x, current.p[0].y);
                         path.lineTo(current.p[1].x, current.p[1].y);
                         path.lineTo(current.p[2].x, current.p[2].y);
@@ -132,42 +175,85 @@ public class main extends JComponent {
                         if(current.dp<0||current.dp>255) {
                             current.dp = 255;
                         }
-                        g.setColor(new Color((int)current.dp,(int)current.dp,(int)current.dp));
+
+                        //draw object vertex
+
+                        g.setColor(new Color(255,255,0));
                         g2.fill(path);
-                    /*g2.setColor(Color.white);
-                    g2.draw(path);*/
+
+                        //draw shader vertex
+
+                        g.setColor(new Color(0,0,0,255-(int)current.dp));
+                        g2.fill(path);
                 }
 
             }
         };
+
+        //more swing management
+
         frame.add(renderPanel,BorderLayout.CENTER);
         frame.repaint();
+
         frame.pack();
-        frame.setSize(600, 600);
+        frame.setSize(1000, 1000);
+
+        //updates the scene and elapses time
+
         while(true){
             long finish = System.currentTimeMillis();
             long timeElapsed = finish - start;
-            TimeUnit.MILLISECONDS.sleep(100);
+            TimeUnit.MILLISECONDS.sleep(50);
             fTheta += 0.1f;
             renderPanel.repaint();
         }
 
     }
-    public static vector multiplyMatrixVector(vector in, mat4x4 m){
-        vector out = new vector(0,0,0);
-        out.x = in.x * m.m[0][0] + in.y * m.m[1][0] + in.z * m.m[2][0] + m.m[3][0];
-        out.y = in.x * m.m[0][1] + in.y * m.m[1][1] + in.z * m.m[2][1] + m.m[3][1];
-        out.z = in.x * m.m[0][2] + in.y * m.m[1][2] + in.z * m.m[2][2] + m.m[3][2];
-        float w = in.x * m.m[0][3] + in.y * m.m[1][3] + in.z * m.m[2][3] + m.m[3][3];
-        if(w!=0.0f) {
-            out.x /= w;
-            out.y /= w;
-            out.z /= w;
-            return out;
+
+    static private class toggleXRot extends AbstractAction {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            if(rotateX){
+                rotateX = false;
+            }else{
+                rotateX = true;
+            }
         }
-        System.out.println("W is 0.");
-        return out;
     }
+    static private class toggleZRot extends AbstractAction {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            if(rotateZ){
+                rotateZ = false;
+            }else{
+                rotateZ = true;
+            }
+        }
+    }
+    static private class toggleYRot extends AbstractAction {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            if(rotateY){
+                rotateY = false;
+            }else{
+                rotateY = true;
+            }
+        }
+    }
+    static private class moveUp extends AbstractAction {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            main.vCamera.y += 50.0f;
+        }
+    }
+
+    static private class moveDown extends AbstractAction {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            main.vCamera.y -= 50.0f;
+        }
+    }
+
     public static vector matrixMultiplyVector(vector in, mat4x4 m){
         vector out = new vector(0,0,0);
         out.x = in.x * m.m[0][0] + in.y * m.m[1][0] + in.z * m.m[2][0] + in.w * m.m[3][0];
@@ -249,6 +335,43 @@ public class main extends JComponent {
                 matrix.m[r][c] = a.m[r][0] * b.m[0][c] + a.m[r][1] * b.m[1][c] + a.m[r][2] * b.m[2][c] + a.m[r][3] * b.m[3][c];
             }
         }
+        return matrix;
+    }
+
+    static mat4x4 matrixPointAt(vector pos, vector target, vector up){
+
+        // calculate new forward direction
+
+        vector newForward = vectorSub(target,pos);
+        newForward = vectorNormalize(newForward);
+
+        // calculate new up direction
+
+        vector a = vectorMul(newForward, vectorDot(up,newForward));
+        vector newUp = vectorSub(up, a);
+        newUp = vectorNormalize(newUp);
+
+        //calculate new right direction
+        vector newRight = vectorCrossproduct(newUp,newForward);
+
+        mat4x4 matrix = new mat4x4();
+        matrix.m[0][0] = newRight.x;	matrix.m[0][1] = newRight.y;	matrix.m[0][2] = newRight.z;	matrix.m[0][3] = 0.0f;
+        matrix.m[1][0] = newUp.x;		matrix.m[1][1] = newUp.y;		matrix.m[1][2] = newUp.z;		matrix.m[1][3] = 0.0f;
+        matrix.m[2][0] = newForward.x;	matrix.m[2][1] = newForward.y;	matrix.m[2][2] = newForward.z;	matrix.m[2][3] = 0.0f;
+        matrix.m[3][0] = pos.x;			matrix.m[3][1] = pos.y;			matrix.m[3][2] = pos.z;			matrix.m[3][3] = 1.0f;
+        return matrix;
+    }
+
+    static mat4x4 matrixQuickInverse(mat4x4 m) // Only for Rotation/Translation Matrices
+    {
+        mat4x4 matrix = new mat4x4();
+        matrix.m[0][0] = m.m[0][0]; matrix.m[0][1] = m.m[1][0]; matrix.m[0][2] = m.m[2][0]; matrix.m[0][3] = 0.0f;
+        matrix.m[1][0] = m.m[0][1]; matrix.m[1][1] = m.m[1][1]; matrix.m[1][2] = m.m[2][1]; matrix.m[1][3] = 0.0f;
+        matrix.m[2][0] = m.m[0][2]; matrix.m[2][1] = m.m[1][2]; matrix.m[2][2] = m.m[2][2]; matrix.m[2][3] = 0.0f;
+        matrix.m[3][0] = -(m.m[3][0] * matrix.m[0][0] + m.m[3][1] * matrix.m[1][0] + m.m[3][2] * matrix.m[2][0]);
+        matrix.m[3][1] = -(m.m[3][0] * matrix.m[0][1] + m.m[3][1] * matrix.m[1][1] + m.m[3][2] * matrix.m[2][1]);
+        matrix.m[3][2] = -(m.m[3][0] * matrix.m[0][2] + m.m[3][1] * matrix.m[1][2] + m.m[3][2] * matrix.m[2][2]);
+        matrix.m[3][3] = 1.0f;
         return matrix;
     }
 
