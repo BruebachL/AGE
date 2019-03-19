@@ -100,6 +100,11 @@ public class main extends JComponent {
 
                     vector vCameraRay = vectorSub(triTransformed.p[0], vCamera);
 
+                    triangle triViewed = new triangle(t.p[0], t.p[1],t.p[2]);
+                    triViewed.p[0] = matrixMultiplyVector(triTransformed.p[0], matView);
+                    triViewed.p[1] = matrixMultiplyVector(triTransformed.p[1], matView);
+                    triViewed.p[2] = matrixMultiplyVector(triTransformed.p[2], matView);
+
                     if(vectorDot(normal,vCameraRay)<0.0f) {
 
                         //Illumination
@@ -109,10 +114,7 @@ public class main extends JComponent {
 
                         //Convert world space to view space
 
-                        triangle triViewed = new triangle(t.p[0], t.p[1],t.p[2]);
-                        triViewed.p[0] = matrixMultiplyVector(triTransformed.p[0], matView);
-                        triViewed.p[1] = matrixMultiplyVector(triTransformed.p[1], matView);
-                        triViewed.p[2] = matrixMultiplyVector(triTransformed.p[2], matView);
+
 
                         //Projection
 
