@@ -21,7 +21,6 @@ public class main extends JComponent {
     public static void main(String[] args) throws InterruptedException, IOException {
 
         //swing management and init
-        vector vCamera = new vector(0,0,0);
         long start = System.currentTimeMillis();
         frame.setSize(1000, 1000);
         frame.getContentPane();
@@ -34,6 +33,10 @@ public class main extends JComponent {
         listener.getActionMap().put("up", new moveUp());
         listener.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("S"), "down");
         listener.getActionMap().put("down", new moveDown());
+        listener.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("A"), "left");
+        listener.getActionMap().put("left", new moveLeft());
+        listener.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("D"), "right");
+        listener.getActionMap().put("right", new moveRight());
         listener.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("F"), "rotateX");
         listener.getActionMap().put("rotateX", new toggleXRot());
         listener.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("G"), "rotateY");
@@ -245,16 +248,31 @@ public class main extends JComponent {
     static private class moveUp extends AbstractAction {
         @Override
         public void actionPerformed(ActionEvent e) {
-            main.vCamera.y += 50.0f;
+            main.vCamera.y -= 0.1f;
         }
     }
 
     static private class moveDown extends AbstractAction {
         @Override
         public void actionPerformed(ActionEvent e) {
-            main.vCamera.y -= 50.0f;
+            main.vCamera.y += 0.1f;
         }
     }
+
+    static private class moveRight extends AbstractAction {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            main.vCamera.x += 0.1f;
+        }
+    }
+
+    static private class moveLeft extends AbstractAction {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            main.vCamera.x -= 0.1f;
+        }
+    }
+
 
     public static vector matrixMultiplyVector(vector in, mat4x4 m){
         vector out = new vector(0,0,0);
