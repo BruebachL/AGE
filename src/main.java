@@ -145,20 +145,20 @@ public class main extends JComponent {
                         // additional triangles.
                         int nClippedTriangles = 0;
                         triangle[] clipped = new triangle[2];
-                        nClippedTriangles = triangleClipAgainstPlane(new vector(0.0f, 0.0f, 0.1f), new vector(0.0f, 0.0f, 1.0f), triViewed, clipped[0], clipped[1]);
+                        triangle[] triParams = new triangle[1];
+                        triParams[0] = triViewed;
+                        clipped = triangleClipAgainstPlane(new vector(0.0f, 0.0f, 0.1f), new vector(0.0f, 0.0f, 1.0f), triParams);
 
                         // We may end up with multiple triangles form the clip, so project as
                         // required
-                        for (int n = 0; n < nClippedTriangles; n++) {
+                        for (int n = 0; n < clipped.length; n++) {
                             // Project triangles from 3D --> 2D
                             triProjected.p[0] = matrixMultiplyVector(clipped[n].p[0], matProj);
                             triProjected.p[1] = matrixMultiplyVector(clipped[n].p[1], matProj);
                             triProjected.p[2] = matrixMultiplyVector(clipped[n].p[2], matProj);
-                            triProjected.dp = clipped[n].dp;
 
-                            // Scale into view, we moved the normalising into cartesian space
-                            // out of the matrix.vector function from the previous videos, so
-                            // do this manually
+
+                            // Scale into view, normalise into cartesian space
                             triProjected.p[0] = vectorDiv(triProjected.p[0], triProjected.p[0].w);
                             triProjected.p[1] = vectorDiv(triProjected.p[1], triProjected.p[1].w);
                             triProjected.p[2] = vectorDiv(triProjected.p[2], triProjected.p[2].w);
@@ -184,7 +184,7 @@ public class main extends JComponent {
                             triProjected.p[2].x *= scale * (float) frame.getWidth();
                             triProjected.p[2].y *= scale * (float) frame.getHeight();
 
-
+                            triProjected.setzDepth();
                             // Store triangle for sorting
                             trianglesToRaster.add(triProjected);
                         }
@@ -220,35 +220,36 @@ public class main extends JComponent {
                             // Clip it against a plane. We only need to test each
                             // subsequent plane, against subsequent new triangles
                             // as all triangles after a plane clip are guaranteed
-                            // to lie on the inside of the plane. I like how this
-                            // comment is almost completely and utterly justified
+                            // to lie on the inside of the plane.
+                            triangle[] parameters = new triangle[3];
+                            parameters[0] = test;
                             switch (p) {
                                 case 0:
-                                    nTrisToAdd = triangleClipAgainstPlane(new vector(0.0f, 0.0f, 0.0f), new vector(0.0f, 1.0f, 0.0f), test, clipped[0], clipped[1]);
+                                    parameters = triangleClipAgainstPlane(new vector(0.0f, 0.0f, 0.0f), new vector(0.0f, 1.0f, 0.0f), parameters);
                                     break;
                                 case 1:
-                                    nTrisToAdd = triangleClipAgainstPlane(new vector(0.0f, (float) frame.getHeight() - 1, 0.0f), new vector(0.0f, -1.0f, 0.0f), test, clipped[0], clipped[1]);
+                                    parameters = triangleClipAgainstPlane(new vector(0.0f, (float) frame.getHeight() - 1, 0.0f), new vector(0.0f, -1.0f, 0.0f), parameters);
                                     break;
                                 case 2:
-                                    nTrisToAdd = triangleClipAgainstPlane(new vector(0.0f, 0.0f, 0.0f), new vector(1.0f, 0.0f, 0.0f), test, clipped[0], clipped[1]);
+                                    parameters = triangleClipAgainstPlane(new vector(0.0f, 0.0f, 0.0f), new vector(1.0f, 0.0f, 0.0f), parameters);
                                     break;
                                 case 3:
-                                    nTrisToAdd = triangleClipAgainstPlane(new vector((float) frame.getWidth() - 1, 0.0f, 0.0f), new vector(-1.0f, 0.0f, 0.0f), test, clipped[0], clipped[1]);
+                                    parameters = triangleClipAgainstPlane(new vector((float) frame.getWidth() - 1, 0.0f, 0.0f), new vector(-1.0f, 0.0f, 0.0f), parameters);
                                     break;
                             }
 
                             // Clipping may yield a variable number of triangles, so
                             // add these new ones to the back of the queue for subsequent
                             // clipping against next planes
-                            for (int w = 0; w < nTrisToAdd; w++)
-                                listTriangles.addLast(clipped[w]);
+                            for (int w = 0; w < parameters.length; w++)
+                                listTriangles.addLast(parameters[w]);
                         }
                         nNewTriangles = listTriangles.size();
                     }
 
-
+                    System.out.println("Drawing");
                     // Draw the transformed, viewed, clipped, projected, sorted, clipped triangles
-                    for (triangle current : listTriangles) {
+                    for (triangle current : trianglesToRaster) {
                         Path2D path = new Path2D.Double();
                         path.moveTo(current.p[0].x, current.p[0].y);
                         path.lineTo(current.p[1].x, current.p[1].y);
@@ -270,7 +271,6 @@ public class main extends JComponent {
                         g2.fill(path);
                     }
                 }
-
             }
         };
         frame.add(renderPanel, BorderLayout.CENTER);
@@ -579,8 +579,9 @@ public class main extends JComponent {
         return vectorAdd(lineStart, lineToIntersect);
     }
 
-    private static int triangleClipAgainstPlane(vector plane_p, vector plane_n, triangle in_tri, triangle out_tri1, triangle out_tri2) {
+    private static triangle[] triangleClipAgainstPlane(vector plane_p, vector plane_n, triangle[] triParams) {
         // Make sure plane normal is indeed normal
+        triangle in_tri = triParams[0];
         plane_n = vectorNormalize(plane_n);
 
         // Create two temporary storage arrays to classify points either side of plane
@@ -618,61 +619,63 @@ public class main extends JComponent {
         if (nInsidePointCount == 0) {
             // All points lie on the outside of plane, so clip whole triangle
             // It ceases to exist
-
-            return 0; // No returned triangles are valid
+            triParams = new triangle[0];
+            // No returned triangles are valid
         }
 
         if (nInsidePointCount == 3) {
+            triParams = new triangle[1];
             // All points lie on the inside of plane, so do nothing
             // and allow the triangle to simply pass through
-            out_tri1 = in_tri;
-
-            return 1; // Just the one returned original triangle is valid
+            triParams[0] = in_tri;
+            triParams[0].dp = in_tri.dp;
+             // Just the one returned original triangle is valid
         }
 
         if (nInsidePointCount == 1 && nOutsidePointCount == 2) {
             // Triangle should be clipped. As two points lie outside
             // the plane, the triangle simply becomes a smaller triangle
-
+            triParams = new triangle[1];
+            triParams[0] = in_tri;
             // Copy appearance info to new triangle
-            out_tri1.dp = in_tri.dp;
+            triParams[0].dp = in_tri.dp;
 
             // The inside point is valid, so keep that...
-            out_tri1.p[0] = inside_points[0];
+            triParams[0].p[0] = inside_points[0];
 
             // but the two new points are at the locations where the
             // original sides of the triangle (lines) intersect with the plane
-            out_tri1.p[1] = vectorIntersectPlane(plane_p, plane_n, inside_points[0], outside_points[0]);
-            out_tri1.p[2] = vectorIntersectPlane(plane_p, plane_n, inside_points[0], outside_points[1]);
+            triParams[0].p[1] = vectorIntersectPlane(plane_p, plane_n, inside_points[0], outside_points[0]);
+            triParams[0].p[2] = vectorIntersectPlane(plane_p, plane_n, inside_points[0], outside_points[1]);
 
-            return 1; // Return the newly formed single triangle
+            // Return the newly formed single triangle
         }
 
         if (nInsidePointCount == 2 && nOutsidePointCount == 1) {
             // Triangle should be clipped. As two points lie inside the plane,
             // the clipped triangle becomes a "quad". Fortunately, we can
             // represent a quad with two new triangles
-
+            triParams = new triangle[2];
             // Copy appearance info to new triangles
-            out_tri1.dp = in_tri.dp;
-            out_tri2.dp = in_tri.dp;
+            triParams[0] = in_tri;
+            triParams[1] = in_tri;
 
             // The first triangle consists of the two inside points and a new
             // point determined by the location where one side of the triangle
             // intersects with the plane
-            out_tri1.p[0] = inside_points[0];
-            out_tri1.p[1] = inside_points[1];
-            out_tri1.p[2] = vectorIntersectPlane(plane_p, plane_n, inside_points[0], outside_points[0]);
+            triParams[0].p[0] = inside_points[0];
+            triParams[0].p[1] = inside_points[1];
+            triParams[0].p[2] = vectorIntersectPlane(plane_p, plane_n, inside_points[0], outside_points[0]);
 
             // The second triangle is composed of one of he inside points, a
             // new point determined by the intersection of the other side of the
             // triangle and the plane, and the newly created point above
-            out_tri2.p[0] = inside_points[1];
-            out_tri2.p[1] = out_tri1.p[2];
-            out_tri2.p[2] = vectorIntersectPlane(plane_p, plane_n, inside_points[1], outside_points[0]);
+            triParams[1].p[0] = inside_points[1];
+            triParams[1].p[1] = triParams[0].p[2];
+            triParams[1].p[2] = vectorIntersectPlane(plane_p, plane_n, inside_points[1], outside_points[0]);
 
-            return 2; // Return two newly formed triangles which form a quad
+            // Return two newly formed triangles which form a quad
         }
-        return 1;
+        return triParams;
     }
 }
