@@ -156,9 +156,11 @@ public class main extends JComponent {
                             triProjected.p[0] = matrixMultiplyVector(clipped[n].p[0], matProj);
                             triProjected.p[1] = matrixMultiplyVector(clipped[n].p[1], matProj);
                             triProjected.p[2] = matrixMultiplyVector(clipped[n].p[2], matProj);
+                            triProjected.dp = clipped[n].dp;
 
-
-                            // Scale into view, normalise into cartesian space
+                            // Scale into view, we moved the normalising into cartesian space
+                            // out of the matrix.vector function from the previous videos, so
+                            // do this manually
                             triProjected.p[0] = vectorDiv(triProjected.p[0], triProjected.p[0].w);
                             triProjected.p[1] = vectorDiv(triProjected.p[1], triProjected.p[1].w);
                             triProjected.p[2] = vectorDiv(triProjected.p[2], triProjected.p[2].w);
@@ -184,7 +186,7 @@ public class main extends JComponent {
                             triProjected.p[2].x *= scale * (float) frame.getWidth();
                             triProjected.p[2].y *= scale * (float) frame.getHeight();
 
-                            triProjected.setzDepth();
+
                             // Store triangle for sorting
                             trianglesToRaster.add(triProjected);
                         }
@@ -199,7 +201,7 @@ public class main extends JComponent {
 
 
                 // Loop through all transformed, viewed, projected, and sorted triangles
-                for (triangle triToRaster : trianglesToRaster) {
+                /*for (triangle triToRaster : trianglesToRaster) {
                     // Clip triangles against all four screen edges, this could yield
                     // a bunch of triangles, so create a queue that we traverse to
                     //  ensure we only test new triangles generated against planes
@@ -220,34 +222,35 @@ public class main extends JComponent {
                             // Clip it against a plane. We only need to test each
                             // subsequent plane, against subsequent new triangles
                             // as all triangles after a plane clip are guaranteed
-                            // to lie on the inside of the plane.
+                            // to lie on the inside of the plane. I like how this
+                            // comment is almost completely and utterly justified
                             triangle[] parameters = new triangle[3];
                             parameters[0] = test;
                             switch (p) {
                                 case 0:
-                                    parameters = triangleClipAgainstPlane(new vector(0.0f, 0.0f, 0.0f), new vector(0.0f, 1.0f, 0.0f), parameters);
+                                    nTrisToAdd = triangleClipAgainstPlane(new vector(0.0f, 0.0f, 0.0f), new vector(0.0f, 1.0f, 0.0f), parameters);
                                     break;
                                 case 1:
-                                    parameters = triangleClipAgainstPlane(new vector(0.0f, (float) frame.getHeight() - 1, 0.0f), new vector(0.0f, -1.0f, 0.0f), parameters);
+                                    nTrisToAdd = triangleClipAgainstPlane(new vector(0.0f, (float) frame.getHeight() - 1, 0.0f), new vector(0.0f, -1.0f, 0.0f), parameters);
                                     break;
                                 case 2:
-                                    parameters = triangleClipAgainstPlane(new vector(0.0f, 0.0f, 0.0f), new vector(1.0f, 0.0f, 0.0f), parameters);
+                                    nTrisToAdd = triangleClipAgainstPlane(new vector(0.0f, 0.0f, 0.0f), new vector(1.0f, 0.0f, 0.0f), parameters);
                                     break;
                                 case 3:
-                                    parameters = triangleClipAgainstPlane(new vector((float) frame.getWidth() - 1, 0.0f, 0.0f), new vector(-1.0f, 0.0f, 0.0f), parameters);
+                                    nTrisToAdd = triangleClipAgainstPlane(new vector((float) frame.getWidth() - 1, 0.0f, 0.0f), new vector(-1.0f, 0.0f, 0.0f), parameters);
                                     break;
                             }
 
                             // Clipping may yield a variable number of triangles, so
                             // add these new ones to the back of the queue for subsequent
                             // clipping against next planes
-                            for (int w = 0; w < parameters.length; w++)
-                                listTriangles.addLast(parameters[w]);
+                            for (int w = 0; w < nTrisToAdd; w++)
+                                listTriangles.addLast(clipped[w]);
                         }
                         nNewTriangles = listTriangles.size();
-                    }
+                    }*/
 
-                    System.out.println("Drawing");
+
                     // Draw the transformed, viewed, clipped, projected, sorted, clipped triangles
                     for (triangle current : trianglesToRaster) {
                         Path2D path = new Path2D.Double();
@@ -267,11 +270,11 @@ public class main extends JComponent {
 
                         //draw shader vertex
 
-                        g.setColor(new Color(0, 0, 0, 255 - (int) current.dp));
-                        g2.fill(path);
+                        /*g.setColor(new Color(0, 0, 0, 255 - (int) current.dp));
+                        g2.fill(path);*/
                     }
                 }
-            }
+
         };
         frame.add(renderPanel, BorderLayout.CENTER);
         frame.repaint();
